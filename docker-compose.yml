@@ -1,0 +1,395 @@
+services:
+  #********************************************************************************#
+  #                              PROXY SERVICE                                     #
+  #********************************************************************************#
+  # Nginx reverse proxy with ModSecurity for security and SSL termination
+  proxy:
+    image: proxy
+    build:
+      context: ./srcs/proxy
+      dockerfile: Dockerfile
+    container_name: proxy
+    depends_on:
+      frontend:
+        condition: service_completed_successfully
+      service-users:
+        condition: service_started
+      service-game:
+        condition: service_started
+      service-chat:
+        condition: service_started
+      service-friends:
+        condition: service_started
+
+    environment:
+      - SSL_CERT=/etc/nginx/ssl/server.crt
+      - SSL_CERT_KEY=/etc/nginx/ssl/server.key
+    volumes:
+      # Nginx HTML files
+      - ./srcs/frontend/build:/usr/share/nginx/html
+      - ./srcs/proxy/nginx/certs/server.crt:/etc/nginx/ssl/server.crt:ro
+      - ./srcs/proxy/nginx/certs/server.key:/etc/nginx/ssl/server.key:ro
+      # Nginx configuration files
+      - ./srcs/proxy/nginx/nginx.conf:/etc/nginx/templates/nginx.conf.template
+      - ./srcs/proxy/nginx/conf.d/default.conf:/etc/nginx/templates/conf.d/default.conf.template
+      - ./srcs/proxy/nginx/conf.d/modsecurity.conf:/etc/nginx/templates/conf.d/modsecurity.conf.template
+      # ModSecurity configuration files
+      - ./srcs/proxy/modsecurity/modsecurity.conf:/etc/nginx/modsecurity.d/modsecurity.conf
+      - ./srcs/proxy/modsecurity/modsecurity-override.conf:/etc/nginx/templates/modsecurity.d/modsecurity-override.conf.template
+      - ./srcs/proxy/modsecurity/setup.conf:/etc/nginx/templates/modsecurity.d/setup.conf.template
+      - ./srcs/proxy/modsecurity/crs:/etc/nginx/modsecurity.d/crs
+    ports:
+      - "8443:443"
+      - "8080:80"
+    networks:
+      - global-net
+    restart: unless-stopped
+  #********************************************************************************#
+
+
+  #********************************************************************************#
+  #                              VAULT INIT SERVICE                                #
+  #********************************************************************************#
+  vault-init:
+    build: ./srcs/backend/vault_init
+    environment:
+      VAULT_ADDR: https://hashicorp_vault:8200
+    networks:
+      - vault_shared-network
+      - global-net
+    restart: no
+
+
+  #********************************************************************************#
+  #                              FRONTEND SERVICE                                  #
+  #********************************************************************************#
+  frontend:
+    image : frontend
+    container_name: frontend
+    build:
+      context: ./srcs/frontend
+      dockerfile: Dockerfile
+    volumes:
+      - frontend-src:/app:rw
+      - frontend-build:/app/build
+    networks:
+      - global-net
+    ports:
+      - "3000:3000"
+    environment:
+     - BACKEND_API_URL=${BACKEND_URL}
+    restart: no
+  #********************************************************************************#
+
+
+
+#**********************************************************************************#
+#                              BACKEND SMICROSERVICES                              #
+#**********************************************************************************#
+  #********************************************************************************#
+  #                            USER SERVICE                                        #
+  #********************************************************************************#
+  # User service for managing user accounts, login, and registration
+  service-users:
+    image: service-users
+    build:
+      context: ./srcs/backend/services/service-users
+      dockerfile: Dockerfile
+    container_name: service-users
+    volumes:
+      - /app/node_modules
+      - DataUserService:/secrets
+    networks:
+      - vault_shared-network
+      - global-net
+      - security-net
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      postgreSQL:
+        condition: service_started
+
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - VAULT_ADDR=https://hashicorp_vault:8200
+      - DB_HOST=${USER_SERVICE_DB_HOST}
+      - DB_NAME=${USER_SERVICE_DB_NAME}
+      - DB_USER=${USER_SERVICE_DB_USER}
+      - DB_PORT=${USER_SERVICE_DB_PORT}
+      - DB_MAX_CLIENTS=${USER_SERVICE_DB_MAX_CLIENTS}
+      - DB_IDLE_TIMEOUT=${USER_SERVICE_DB_IDLE_TIMEOUT}
+      - DB_CONNECTION_TIMEOUT=${USER_SERVICE_DB_CONNECTION_TIMEOUT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - FORTYTWO_REDIRECT_URI=${FORTYTWO_REDIRECT_URI}
+      - ACCESS_TOKEN_EXPIRATION=${ACCESS_TOKEN_EXPIRATION}
+      - REFRESH_TOKEN_EXPIRATION=${REFRESH_TOKEN_EXPIRATION}
+      - TEMP_TOKEN_EXPIRATION=${TEMP_TOKEN_EXPIRATION}
+      - GCP_STORAGE_KEY_PATH=${GCP_STORAGE_KEY_PATH}
+      - ORIGIN_URL=${ORIGIN_URL}
+      - VAULT_ADDR=${VAULT_ADDR}
+    restart: unless-stopped
+  #********************************************************************************#
+
+  
+  #********************************************************************************#
+  #                            GAME SERVICE                                        #
+  #********************************************************************************#
+  # Game service for managing game sessions, matchmaking, and real-time interactions
+
+  service-game:
+    image: service-game
+    build:
+      context: ./srcs/backend/services/service-game
+      dockerfile: Dockerfile
+    container_name: service-game
+    volumes:
+      - /app/node_modules
+      - DataUserService:/secrets
+    networks:
+      - vault_shared-network
+      - global-net
+      - security-net
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      postgreSQL:
+        condition: service_started
+    ports:
+      - "4001:4001"
+    environment:
+      - NODE_ENV=production
+      - VAULT_ADDR=https://hashicorp_vault:8200
+      - DB_HOST=${GAME_SERVICE_DB_HOST}
+      - DB_NAME=${GAME_SERVICE_DB_NAME}
+      - DB_USER=${GAME_SERVICE_DB_USER}
+      - DB_PORT=${GAME_SERVICE_DB_PORT}
+      - DB_SAMPLE_NAME=${GAME_SERVICE_DB_SAMPLE_NAME}
+    restart: unless-stopped
+  
+
+  #********************************************************************************#
+  #                            CHAT SERVICE                                        #
+  #********************************************************************************#
+  # Chat service for managing chat sessions, messaging and real-time interactions
+
+  service-chat:
+    image: service-chat
+    build:
+      context: ./srcs/backend/services/service-chat
+      dockerfile: Dockerfile
+    container_name: service-chat
+    volumes:
+      - /app/node_modules
+      - DataUserService:/secrets
+    networks:
+      - vault_shared-network
+      - global-net
+      - security-net
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      postgreSQL:
+        condition: service_started
+    ports:
+      - "4002:4002"
+    environment:
+      - NODE_ENV=production
+      - VAULT_ADDR=https://hashicorp_vault:8200
+      - DB_HOST=${CHAT_SERVICE_DB_HOST}
+      - DB_NAME=${CHAT_SERVICE_DB_NAME}
+      - DB_USER=${CHAT_SERVICE_DB_USER}
+      - DB_PORT=${CHAT_SERVICE_DB_PORT}
+      - ORIGIN_URL=${ORIGIN_URL}
+    restart: unless-stopped
+
+
+
+  #********************************************************************************#
+  #                            FRIENDS SERVICE                                     #
+  #********************************************************************************#
+  # Friends service for managing Friends sessions, matchmaking, and real-time interactions
+
+  service-friends:
+    image: service-friends
+    build:
+      context: ./srcs/backend/services/service-friends
+      dockerfile: Dockerfile
+    container_name: service-friends
+    volumes:
+      - /app/node_modules
+      - DataUserService:/secrets
+    networks:
+      - vault_shared-network
+      - global-net
+      - security-net
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      postgreSQL:
+        condition: service_started
+    ports:
+      - "4003:4003"
+    environment:
+      - NODE_ENV=production
+      - VAULT_ADDR=https://hashicorp_vault:8200
+      - DB_HOST=${FRIENDS_SERVICE_DB_HOST}
+      - DB_NAME=${FRIENDS_SERVICE_DB_NAME}
+      - DB_USER=${FRIENDS_SERVICE_DB_USER}
+      - DB_PORT=${FRIENDS_SERVICE_DB_PORT}
+      - USER_SERVICE_URL=http://service-users:4000
+      - ORIGIN_URL=${ORIGIN_URL}
+    restart: unless-stopped
+
+  #********************************************************************************#
+  #                            POSTGRES SERVICE                                    #
+  #********************************************************************************#
+  # PostgreSQL service for storing user data and application state
+  postgreSQL:
+    image: postgresql
+    build:
+      context: ./srcs/backend/postgresql
+      dockerfile: Dockerfile
+    container_name: postgreSQL
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - PostgresData:/var/lib/postgresql/data/postgresql
+      - ./srcs/backend/postgresql/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./srcs/backend/postgresql/config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./srcs/backend/postgresql/config/pg_ident.conf:/etc/postgresql/pg_ident.conf:ro
+    
+    networks:
+      - security-net
+      - vault_shared-network
+    restart: unless-stopped
+    environment:
+      - USER_SERVICE_DB_HOST=${USER_SERVICE_DB_HOST}
+      - USER_SERVICE_DB_NAME=${USER_SERVICE_DB_NAME}
+      - USER_SERVICE_DB_USER=${USER_SERVICE_DB_USER}
+      - USER_SERVICE_DB_PORT=${USER_SERVICE_DB_PORT}
+      - USER_SERVICE_DB_MAX_CLIENTS=${USER_SERVICE_DB_MAX_CLIENTS}
+      - GAME_SERVICE_DB_HOST=${GAME_SERVICE_DB_HOST}
+      - GAME_SERVICE_DB_NAME=${GAME_SERVICE_DB_NAME}
+      - GAME_SERVICE_DB_USER=${GAME_SERVICE_DB_USER}
+      - GAME_SERVICE_DB_PORT=${GAME_SERVICE_DB_PORT}
+      - CHAT_SERVICE_DB_HOST=${CHAT_SERVICE_DB_HOST}
+      - CHAT_SERVICE_DB_NAME=${CHAT_SERVICE_DB_NAME}
+      - CHAT_SERVICE_DB_USER=${CHAT_SERVICE_DB_USER}
+      - CHAT_SERVICE_DB_PORT=${CHAT_SERVICE_DB_PORT}
+      - FRIENDS_SERVICE_DB_HOST=${FRIENDS_SERVICE_DB_HOST}
+      - FRIENDS_SERVICE_DB_NAME=${FRIENDS_SERVICE_DB_NAME}
+      - FRIENDS_SERVICE_DB_USER=${FRIENDS_SERVICE_DB_USER}
+      - FRIENDS_SERVICE_DB_PORT=${FRIENDS_SERVICE_DB_PORT}
+    ports:
+      - "5432:5432"
+  #********************************************************************************#      
+  #********************************************************************************#
+
+
+
+  #****************************************************************************#
+  #                                  REDIS                                     #
+  #****************************************************************************#
+  redis: # Name of the Redis service
+    build: # Build the image
+      context: ./srcs/backend/redis # Build the image using the Dockerfile
+    
+    image: redis # Image name
+
+    container_name: redis # Container name
+
+    labels: # Labels for the description of the container
+      - com.redis.description="Redis Server" # Container description
+    volumes:
+      - RedisData:/data
+
+    expose: # Expose the port of the container
+      - "6379" # Expose the port 6379
+    networks: # Use the network for communication between containers
+      - global-net # Network name
+
+    restart: unless-stopped # Restart the container unless it is stopped
+  #*******************************REDIS-SERVER*********************************#
+
+#********************************************************************************#
+
+#********************************************************************************#
+#                              NETWORKS                                          #
+#********************************************************************************#
+networks:
+  # Global network for all services
+    global-net:
+      driver: bridge
+  #******************************************************************************#
+  # Security network for sensitive services
+    security-net:
+      driver: bridge
+
+    vault_shared-network:
+      external: true
+#********************************************************************************#
+#                              VOLUMES                                           #
+#********************************************************************************# 
+volumes:
+  RedisData:
+    driver: local
+    driver_opts:
+      type: none
+      device: ~/data/redis/data
+      o: bind
+  # Local volume for HashiCorp Vault data
+  # This volume is used to persist Vault data across container restarts
+  LocalVaultData:
+    driver: local
+    driver_opts:
+      type: none
+      device: ~/data/vault
+      o: bind
+  #*******************************************************************************#
+  # Local volume for frontend build artifacts
+  # This volume is used to persist the build output of the frontend application
+  frontend-build:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./srcs/frontend/build
+      o: bind
+  frontend-src:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./srcs/frontend
+      o: bind
+  #*******************************************************************************#
+  # this volume is used to store the backend data
+  DataUserService:
+    driver: local
+    driver_opts:
+      type: none
+      device: ~/data/secrets
+      o: bind
+  #*******************************************************************************#
+  # Local volume for PostgreSQL data
+  # This volume is used to persist PostgreSQL data across container restarts
+  PostgresData:
+    driver: local
+    driver_opts: 
+      type: none
+      device: ~/data/postgresql
+      o: bind
+  #*******************************************************************************#

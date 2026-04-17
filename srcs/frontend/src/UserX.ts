@@ -1,0 +1,531 @@
+// IMPORT FOR SCENE BABYLON
+import { ZoneName } from "./config.ts";
+import { SceneManager } from "./scene/SceneManager.ts";
+
+import { Env } from "./lockerRoom/utils.ts";
+
+// IMPORT FOR TOURNAMENT
+import { 
+    TournamentParticipant,
+    Tournament
+} from "./pong/Tournament.ts";
+
+// IMPORT FOR MATCHS
+import { 
+    Match,
+    MatchRules,
+    MatchParticipant 
+} from "./pong/Match.ts";
+
+import { MatchFriendlyOnline } from "./pong/Match/MatchFriendlyOnLine.ts";
+
+// IMPORT FOR FRIENDS
+import {
+    FriendManager,
+    FriendInvitationsI
+} from "./friends/FriendsManager.ts";
+
+import { Friend } from "./friends/Friend.ts";
+import { FriendInvitation } from "./friends/FriendInvitation.ts";
+
+// IMPORT FOR CALL API
+import { 
+    PromiseUpdateResponse,
+    StatusInvitation 
+} from "./friends/api/friends.api.ts";
+
+import { getApiUrl } from "./utils.ts";
+
+// TYPES
+import { 
+    User, 
+    userToBackendFormat 
+} from "./types.ts";
+import { authFetch } from "./auth/authFetch.ts";
+
+
+/*
+    Classe permettant de gérer les actions de l'utilisateur, lieu où seront stockées les données
+*/
+
+export class UserX 
+{
+    // PROPS //
+    private currentZone: ZoneName | null = null;
+    private sceneManager : SceneManager;
+    private user: User | null = null;
+    
+    private match: Match | null = null;
+    private tournament: Tournament | null = null;
+
+    private friendManager: FriendManager;
+
+    constructor(sceneManager : SceneManager)
+    {
+        this.sceneManager = sceneManager;
+        this.friendManager = new FriendManager(this);
+    }
+
+
+    /***********************************/
+    /*              Friends            */
+    /***********************************/
+
+    async loadDataFriends() : Promise<{success: boolean, message: string}>
+    {
+        return (await this.friendManager.loadData());
+    }
+
+    async sendFriendInvite(
+        username: string
+    ) : Promise<{success: boolean, message?: string, data?: any}>
+    {
+        return (await this.friendManager.sendInvitation(username));
+    }
+
+    async deleteFriend(friend: Friend) : Promise<{success: boolean, message: string}>
+    {
+        return (await this.friendManager.deleteFriend(friend))
+    }
+
+    async updateInvitation(
+        invitation: FriendInvitation,
+        param: StatusInvitation
+    ) : Promise<PromiseUpdateResponse>
+    {
+        return (await this.friendManager.updateInvitation(invitation, param));
+    }
+
+    async deleteInvitation(
+        invitation: FriendInvitation
+    ) : Promise<PromiseUpdateResponse>
+    {
+        return (await this.friendManager.deleteInvitation(invitation));
+    }
+
+    async deleteBlocked(
+        username: string
+    ) : Promise<PromiseUpdateResponse>
+    {
+        return (await this.friendManager.deleteBlocked(username));
+    }
+
+    async blockFriend(friend: Friend)
+    {
+        return (await this.friendManager.blockFriend(friend));
+    }
+
+    /***********************************/
+    /*       Tournament / Matchs       */
+    /***********************************/
+    createTournament() : boolean
+    {
+        // if (this.user === null)
+        // {
+        //     // update user from profile
+        //     console.error("Impossible de créer un tournoi: utilisateur non connecté");
+        //     return (false);
+        // }
+        // Utiliser le username de l'utilisateur comme alias si aucun alias n'est fourni
+        // const alias = a || this.user.username;
+        // const backendUser = userToBackendFormat(this.user);
+        const p : TournamentParticipant = {
+            login: this.user!.username,
+            alias: this.user!.username,
+            ready: true,
+            id: this.user!.id,
+            eliminate: false
+        } 
+        this.tournament = new Tournament(this.sceneManager);
+
+        const result = this.tournament.addParticipant(p);
+        if (result !== 0) {
+            return (false);
+        }
+
+        // Créer le tournoi dans la base de données (sans règles pour l'instant, elles seront ajoutées plus tard)
+        // Le tournoi sera créé avec les règles par défaut, puis mises à jour quand l'utilisateur les définit
+        // try {
+            // const response = await fetch(`${API_URL}/api/tournament/create`, {
+            //     method: "POST",
+            //     headers: {
+            //         "Content-Type": "application/json",
+            //         Accept: "application/json",
+            //     },
+            //     credentials: "include",
+            //     body: JSON.stringify({
+            //         name: null,
+            //         speed: "1", // Valeur par défaut, sera mise à jour
+            //         scoreMax: "5", // Valeur par défaut, sera mise à jour
+            //         timeBefore: "3", // Valeur par défaut, sera mise à jour
+            //         player1_id: this.user.id || 0,
+            //         player1_login: backendUser.login, // Envoyer le login pour synchronisation avec le système d'auth
+            //     }),
+            // });
+
+        //     if (response.ok) {
+        //         const data = await response.json();
+        //         console.log("Tournoi créé dans la base de données:", data.tournamentId);
+        //         this.tournament.setDbTournamentId = data.tournamentId;
+                
+        //         // Mettre à jour l'ID du participant dans la base de données
+        //         if (data.tournament && data.tournament.participants && data.tournament.participants.length > 0) 
+        //             p.dbParticipantId = data.tournament.participants[0].id;
+        //         return (true);
+        //     } else {
+        //         const errorData = await response.json();
+        //         console.error("Erreur lors de la création du tournoi:", errorData);
+        //         return (false);
+        //     }
+        // } catch (error) {
+        //     console.error("Erreur lors de l'appel API pour créer le tournoi:", error);
+        //     return (false);
+        // }
+        return (true);
+    }
+
+
+    playTournamentMatch(
+        t: Tournament,
+        m: Match,
+        sceneManager: SceneManager
+    ) : boolean
+    {
+        if (this.user === null) {
+            console.error("Impossible de jouer un match de tournoi: utilisateur non connecté");
+            return (false);
+        }
+        return (t.playMatch(m, this.user.id || 0, sceneManager));
+    }
+        async createFriendlyMatch(
+        r: MatchRules,
+        isOnline: boolean = false
+    ) : Promise<boolean>
+    {
+        if (!this.user) {
+            //  update user from profile
+            console.error("Impossible de créer un match amical: utilisateur non défini dans UserX");
+            return (false);
+        }
+        // Créer le match dans la base de données
+        const backendUser = userToBackendFormat(this.user);
+        try {
+            const requestBody = {
+                speed: r.speed || "1",
+                scoreMax: r.score || "5",
+                timeBefore: r.timeBefore || "3",
+                player1_id: this.user.id || 0,
+                player1_login: backendUser.login, // Envoyer le login pour synchronisation avec le système d'auth
+                isOnline: isOnline,
+            };
+            const response = await authFetch(`${getApiUrl()}/api/friendly/create`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify(requestBody),
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                let errorData;
+                try {
+                    errorData = JSON.parse(errorText);
+                } catch {
+                    errorData = { message: errorText };
+                }
+                console.error("Erreur lors de la création du match amical:", response.status, errorData);
+                return (false);
+            }
+
+            const data = await response.json();
+            // Important : synchroniser l'ID utilisateur local avec celui utilisé côté backend
+            // Le service game peut créer / réutiliser un utilisateur avec un ID différent de this.user.id
+            // (via prisma.user.upsert). On récupère donc l'ID réel pour que les prochains appels (join)
+            // envoient le même playerId que celui stocké dans la DB (match.player1Id).
+            if (data.match && data.match.player1 && typeof data.match.player1.id === "number") {
+                const oldUser = { ...this.user };
+                // this.user = {
+                //     username: data.match.player1.login || this.user.username,
+                //     id: data.match.player1.id,
+                //     email: this.user.email,
+
+                // };
+            }
+            
+            // Le match est créé et en attente d'un joueur
+            // L'écran d'attente sera géré par l'interface
+            return (true);
+        } catch (error) {
+            console.error("Erreur lors de l'appel API pour créer le match amical:", error);
+            return (false);
+        }
+    }
+
+    async joinFriendlyMatch(
+        r: MatchRules,
+        idMatch: number,
+        idOpp: number,
+        loginOpp: string,
+        env: Env
+    ) : Promise<boolean>
+    {
+        if (!this.user) {
+            return (false);
+        }
+        if (this.user.id === undefined || this.user.id === null || this.user.id === 0) {
+            console.warn("this.user.id est invalide ou 0:", this.user.id, "- Continuons quand même pour déboguer");
+            // On continue quand même pour voir ce qui se passe
+        }
+        
+        // Appeler l'API pour rejoindre le match
+        const backendUser = userToBackendFormat(this.user);
+        try {
+            const response = await authFetch(`${getApiUrl()}/api/friendly/${idMatch}/join`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    player2_id: this.user.id || 0,
+                    player2_login: backendUser.login, // Envoyer le login pour synchronisation avec le système d'auth
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Erreur lors de la jonction au match amical:", errorData);
+                return (false);
+            }
+
+            const data = await response.json();
+            const backendLogin = backendUser.login;
+            const player1LoginDb = data.match?.player1?.login;
+            const player2LoginDb = data.match?.player2?.login;
+            const isCurrentPlayer1 = backendLogin && player1LoginDb && backendLogin === player1LoginDb;
+            const isCurrentPlayer2 = backendLogin && player2LoginDb && backendLogin === player2LoginDb;
+
+            if (isCurrentPlayer1 && data.match?.player1 && typeof data.match.player1.id === "number") {
+                const oldUser = { ...this.user };
+                // this.user = {
+                //     username: data.match.player1.login || this.user.username,
+                //     id: data.match.player1.id,
+                //     email: this.user.email,
+                //     avatar: this.user.avatar,
+                // };
+            } else if (isCurrentPlayer2 && data.match?.player2 && typeof data.match.player2.id === "number") {
+                const oldUser = { ...this.user };
+                // this.user = {
+                //     username: data.match.player2.login || this.user.username,
+                //     id: data.match.player2.id,
+                //     email: this.user.email,
+                //     avatar: this.user.avatar,
+                // };
+            } else {
+                console.warn("Impossible de déterminer le rôle player1/player2 pour l'utilisateur courant lors de joinFriendlyMatch:", {
+                    backendLogin,
+                    player1Login: player1LoginDb,
+                    player2Login: player2LoginDb
+                });
+            }
+
+            const match = new MatchFriendlyOnline(idMatch, r, this.sceneManager);
+            const isOnline = data.match?.isOnline || false;       
+            // Déterminer l'ordre des participants selon player1Id et player2Id
+            // player1 → équipe 1 (gauche), player2 → équipe 2 (droite)
+            // Dans GameLogic, p[0] → équipe 1, p[1] → équipe 2
+            let players: MatchParticipant[];
+            
+            const player1Id = data.match?.player1Id;
+            const player2Id = data.match?.player2Id;
+            const player1Login = data.match?.player1?.login;
+            const player2Login = data.match?.player2?.login;
+            
+    
+            // Simplification: mapping déterministe et uniforme
+            // Premier joueur (player1) → gauche (p[0])
+            // Second joueur (player2) → droite (p[1])
+            // Ce comportement s'applique aussi pour les matchs en ligne : premier arrivé = gauche, second = droite.
+            players = [
+                { alias: player1Login || loginOpp || "Player1", id: player1Id ?? idOpp ?? 0, ready: false, me: false },
+                { alias: player2Login || loginOpp || "Player2", id: player2Id ?? idOpp ?? 0, ready: false, me: false }
+            ];
+
+            // Marquer "me" par ID OU par login (robuste aux désynchronisations d'ID entre auth et service game)
+            const isPlayer1Me =
+                (typeof player1Id === "number" && player1Id === this.user.id) ||
+                (player1Login && player1Login === backendLogin);
+            const isPlayer2Me =
+                (typeof player2Id === "number" && player2Id === this.user.id) ||
+                (player2Login && player2Login === backendLogin);
+
+            if (isPlayer1Me) {
+                players[0].me = true;
+            } else if (isPlayer2Me) {
+                players[1].me = true;
+            } else if (!player2Id && isPlayer1Me) {
+                // Fallback quand player2Id est encore null et que le créateur (player1) rejoint
+                players[0].me = true;
+            } else {
+                console.log("Utilisateur local n'est pas encore assigné player1/player2 (spectateur ou attente)");
+            }
+
+            // Conserver les IDs tels que fournis par le serveur (DB IDs).
+            // Ne pas écraser `id` ici : le mapping jeu (1=gauche, 2=droite) sera fait côté `MatchFriendlyOnLine`.
+
+            if (!match.init(players, isOnline))
+                return (false);
+            
+            this.sceneManager.getSceneInteractor?.disableInteractions();
+            // env.menuContainer.dispose();
+            env.scoreboard.setClic = false;
+            env.scoreboard.setPlayMatch = true;
+            this.sceneManager.moveCameraTo(ZoneName.FIELD, () => {
+                this.sceneManager.setSpecificMesh(false);
+                this.sceneManager.getSceneInteractor?.enableInteractionScene();
+            });
+
+            match.play();
+            return (true);
+        } catch (error) {
+            console.error("Erreur lors de l'appel API pour rejoindre le match amical:", error);
+            return (false);
+        }
+    }
+    
+    deleteTournament() : boolean
+    {
+        this.tournament = null;
+        return true;
+    }
+    
+    async deleteFriendlyMatch(
+        matchId: number
+    ) : Promise<boolean>
+    {
+        if (!this.user) {
+            console.error("Impossible de supprimer un match amical: utilisateur non défini dans UserX");
+            return (false);
+        }
+        try {
+            const response = await authFetch(`${getApiUrl()}/api/friendly/${matchId}`, {
+                method: "DELETE",
+                headers: {
+                    Accept: "application/json",
+                },
+                credentials: "include",
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                let errorData;
+                try {
+                    errorData = JSON.parse(errorText);
+                } catch {
+                    errorData = { message: errorText };
+                }
+                console.error("Erreur lors de la suppression du match amical:", response.status, errorData);
+                return (false);
+            }
+
+            const data = await response.json();
+            return (true);
+        } catch (error) {
+            console.error("Erreur lors de l'appel API pour supprimer le match amical:", error);
+            return (false);
+        }
+    }
+
+    /***********************************/
+    /*              Getters            */
+    /***********************************/
+
+    // == Friends == //
+    get getFriends() : Friend[]
+    {
+        return (this.friendManager.getFriends);
+    }
+
+    get getFriendInvitations() : FriendInvitationsI
+    {
+        return (this.friendManager.getInvitations)
+    }
+
+    get getUserBlockeds() : string[]
+    {
+        return (this.friendManager.getBlockeds);
+    }
+    // ============ //
+
+    // == Match / Tournament == //
+    get getMatch() : Match | null
+    {
+        return (this.match);
+    }
+
+    get getTournament() : Tournament | null
+    {
+        return (this.tournament);
+    }
+    // ======================== //
+
+
+    get getCurrentZone() : ZoneName | null
+    {
+        return (this.currentZone);
+    }
+
+    get getUser() : User | null
+    {
+        return (this.user);
+    }
+
+    /***********************************/
+    /*             Setters             */
+    /***********************************/
+
+    // == Match / Tournament == //
+    set setTournament(
+        tournament: Tournament
+    )
+    {
+        this.tournament = tournament;
+    }
+
+    set setMatch(
+        match: Match | null
+    )
+    {
+        this.match = match;
+    }
+    // ======================== //
+    
+    set setCurrentZone(
+        zone: ZoneName
+    )
+    {
+        this.currentZone = zone;
+    }
+
+
+    set setUser(
+        user:User
+    )
+    {
+        if (this.user === null)
+        {
+            this.user = user;
+            if (this.user !== null)
+                this.friendManager.loadData();
+            else 
+                this.user = null;
+        }
+    }
+    clearUser() : void
+    {
+        this.user = null;
+    }
+}
