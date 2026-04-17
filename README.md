@@ -1,95 +1,107 @@
-# 🏓 ft_transcendence
+# 🎮 Transcendence
 
-## 🎯 Project Overview
+> A modern full-stack web application inspired by Pong, featuring real-time multiplayer gameplay, authentication, and competitive ranking.
 
-**ft_transcendence** is the final project of the 42 core curriculum.  
-It challenges students to build a complete, full-stack web platform that combines social features with an online real-time Pong game.
-
-The project involves:
-- OAuth-based authentication (42 Intra)
-- Real-time multiplayer Pong
-- Social features: profiles, friends, chat
-- SPA frontend with a modern framework
-- Secure backend with REST and WebSocket
-- PostgreSQL, Docker, Nginx, WAF (ModSecurity) /hashicorp-vault
+Built as part of the 42 curriculum, this project showcases advanced web development concepts including real-time communication, scalable architecture, and secure user management.
 
 ---
 
-## 📦 Section 1: Selected Modules
+## 🚀 Overview
 
-## 🧩 Optional Modules (Bonus)
+Transcendence is a browser-based multiplayer game where users can compete in real-time matches, track their performance, and interact through a dynamic web interface.
 
-| Category            | Module Description                                                                                      | Level  | ✅ Selected|
-|---------------------|---------------------------------------------------------------------------------------------------------|--------|------------|
-| **Web**             | Use a backend framework                                                                                 | Major  | ✅         |
-|                     | Use a frontend framework or toolkit                                                                     | Minor  | ✅         |
-|                     | Use a database for backend                                                                              | Minor  | ✅         |
-|                     | Store tournament scores on the Blockchain                                                               | Major  | ⬜         |
-| **User Management** | Standard user management, auth, cross-tournament user support                                           | Major  | ✅         |
-|                     | Implement remote authentication                                                                         | Major  | ✅         |
-| **Gameplay & UX**   | Support remote players                                                                                  | Major  | ✅         |
-|                     | Multiplayer (more than 2 players in-game)                                                               | Major  | ⬜         |
-|                     | Add a second game with matchmaking and history                                                          | Major  | ⬜         |
-|                     | Game customization options                                                                              | Minor  | ✅         |
-|                     | Live chat                                                                                               | Major  | ✅         |
-| **AI & Analytics**  | Implement an AI opponent                                                                                | Major  | ⬜         |
-|                     | User and game statistics dashboard                                                                      | Minor  | ✅         |
-| **Cybersecurity**   | WAF/ModSecurity + hardened config + Vault integration                                                   | Major  | ✅         |
-|                     | GDPR compliance: anonymization, local data, account deletion                                            | Minor  | ⬜         |
-|                     | Two-Factor Auth (2FA) and JWT integration                                                               | Major  | ✅         |
-| **DevOps**          | Infrastructure for centralized log management                                                           | Major  | ⬜         |
-|                     | Monitoring system (e.g. Prometheus/Grafana)                                                             | Minor  | ⬜         |
-|                     | Backend microservices architecture                                                                      | Major  | ✅         |
-| **Graphics**        | Advanced 3D graphics                                                                                    | Major  | ✅         |
-| **Accessibility**   | Support for all devices                                                                                 | Minor  | ⬜         |
-|                     | Browser compatibility expansion                                                                         | Minor  | ✅         |
-|                     | Multilingual support                                                                                    | Minor  | ⬜         |
-|                     | Accessibility for visually impaired users                                                               | Minor  | ⬜         |
-|                     | Server-Side Rendering (SSR)                                                                             | Minor  | ⬜         |
-| **Server-Side Pong**| Full server-side Pong implementation + API                                                              | Major  | ⬜         |
-|                     | CLI Pong vs web users through API                                                                       | Major  | ⬜         |
+The project focuses on delivering a smooth, responsive experience while handling real-time interactions and user data securely.
+
+---
+
+## ✨ Features
+
+* 🎮 Real-time multiplayer gameplay (WebSockets)
+* 🔐 Secure authentication system (JWT / OAuth)
+* 🏆 Match history
+* 👤 User profiles & stats tracking
+* 💬 Interactive UI & responsive design
+* ⚙️ Containerized environment with Docker
+
+---
+
+## 📸 Preview
+
 
 
 ---
 
-## 🚧 Section 2: Project Progress
-### 🔐 2.0 – Security: Requirements
-| **Security Requirement**                                                      | Status   | **Description**                                                                                                                                          |
-|-------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Password Hashing**                                                          | ✅       | Any password stored in your database must be **hashed** (e.g., using bcrypt, Argon2).                                                                   |
-| **Protection Against SQL Injection and XSS**                                  | ✅       | The website must be protected against **SQL injection** and **XSS attacks** (e.g., using prepared statements and input sanitization).                   |
-| **HTTPS/WSS Required**                                                        | ✅       | All communication (frontend/backend, API, WebSocket) must use **HTTPS/WSS** to ensure secure data transmission.                                        |
-| **Form and Input Validation**                                                 | ✅       | You must implement **validation for all forms and user inputs**, either on the frontend (if no backend is used) or on the server side.                 |
-| **Route and API Security**                                                    | ✅       | Even without implementing JWT or 2FA, all **API routes and access points must be secured**. Website security is a top priority regardless of method.   |
-### 🔐 2.1 – Security: ModSecurity + Nginx
-- ✅ **ModSecurity** running in a dedicated container
-- ✅ Integrated **OWASP CRS**
-- ✅ Attack test script implemented (SQLi, XSS, etc.)
-- ✅ Nginx configured as reverse proxy serving static pages
-### 🔐 2.2 – Security: HashiCorp Vault 
-- ✅ HashiCorp Vault running in a dedicated container
-- 
+## 🛠️ Tech Stack
 
-## 🐳 Docker Architecture
+### Frontend
 
-```mermaid
-graph TD
-    subgraph Internet
-        A[Client Browser]
-    end
+* React
+* TypeScript
+* HTML5 / CSS3
+* BabylonJS
 
-    subgraph Docker Network
-        A --> B[Nginx + ModSecurity]
-        B --> C[Frontend SPA]
-        B --> D[Backend]
-        D --> E[(PostgreSQL DB)]
-        D --> F[WebSocket Game Server]
-    end
-```
+### Backend
+
+* Node.js
+* REST API
+* WebSocket (real-time communication)
+
+### Database
+
+* PostgreSQL / SQLite / Prisma
+
+### DevOps
+
+* Docker
+* Nginx
+* Linux environment
+
+---
+
+## 🧠 Challenges & Learnings
+
+This project pushed me to tackle several complex problems:
+
+* **Real-time synchronization**: ensuring consistent game state between players using WebSockets
+* **Scalable architecture**: structuring backend services to handle multiple concurrent users
+* **Authentication & security**: implementing secure login flows and protecting user data
+* **Performance optimization**: minimizing latency for smooth gameplay
+
+---
+
+## ⚙️ Installation
+
 ```bash
-./scripts/test_modsec.sh
-
-
-## 🐳 Docker Architecture
+git clone https://github.com/Liogas/Transcendance_42.git
+cd Transcendance_42
+docker-compose up --build
 ```
 
+Then open your browser at:
+
+```
+http://localhost:3000
+```
+
+---
+
+## 👤 My Contribution
+
+* Developed 3D frontend experience with BabylonJS
+* Implemented social features (friends, interactions)
+* Designed and implemented backend architecture & API
+
+---
+
+## 📬 Contact
+
+* 📧 [gastonlions.pro@gmail.com](mailto:gastonlions.pro@gmail.com)
+* 💼 https://www.linkedin.com/in/gaston-lions-817823176/
+
+---
+
+## 🏁 Final Note
+
+This project represents a deep dive into full-stack development, combining real-time systems, security, and performance.
+
+It reflects not only technical skills, but also the ability to design and deliver a complete, production-like application with a team.
